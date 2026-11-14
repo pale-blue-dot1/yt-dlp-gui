@@ -7,8 +7,10 @@ use tauri::AppHandle;
 
 use super::support::{
     build_tool_status, download_to_file_with_progress, emit_tool_progress, executable_temp_path,
-    replace_executable, verify_executable,
+    fetch_release_text, find_single_sha256, replace_executable, verify_executable,
+    verify_sha256_or_remove,
 };
+use super::updates::resolve_release_tag;
 use super::ToolStatus;
 
 /// 获取 Deno 安装状态和版本
@@ -32,16 +34,25 @@ async fn download_deno_impl(app: AppHandle, operation: &str) -> Result<(), Strin
         .ok_or("err_invalid_executable_path")?;
     let zip_path = deno_path.with_file_name(format!("{}.download.zip", deno_file_name));
 
+    // 从同一个 release 取 zip 与 Deno 为每个资产发布的 `<asset>.sha256sum`
+    let tag = resolve_release_tag("https://github.com/denoland/deno/releases/latest").await?;
+    let (asset_url, checksum_url) = utils::get_deno_release_urls(&tag);
+    let checksum = fetch_release_text(&checksum_url).await?;
+    let expected = find_single_sha256(&checksum)
+        .ok_or_else(|| format!("err_checksum_missing:{}", utils::get_deno_asset_name()))?;
+
     download_to_file_with_progress(
         &app,
         "deno",
         operation,
-        utils::get_deno_download_url(),
+        &asset_url,
         &zip_path,
         0.0,
         100.0,
     )
     .await?;
+    // 解压前校验 zip；失败时删除 zip，现有 Deno 保持不变
+    verify_sha256_or_remove(&zip_path, &expected).await?;
 
     emit_tool_progress(&app, "deno", operation, "installing", None);
 

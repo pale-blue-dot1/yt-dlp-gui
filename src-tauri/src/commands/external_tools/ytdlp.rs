@@ -9,8 +9,10 @@ use tokio::io::AsyncBufReadExt;
 
 use super::support::{
     build_tool_status, download_to_file_with_progress, emit_tool_progress, executable_temp_path,
-    replace_executable, verify_executable,
+    fetch_release_text, find_sha256_in_sums, replace_executable, verify_executable,
+    verify_sha256_or_remove,
 };
+use super::updates::resolve_release_tag;
 use super::ToolStatus;
 
 /// 获取 yt-dlp 安装状态和版本
@@ -53,16 +55,26 @@ async fn download_ytdlp_impl(app: AppHandle, operation: &str) -> Result<(), Stri
     let ytdlp_path = utils::get_managed_ytdlp_path(&app)?;
     let temp_path = executable_temp_path(&ytdlp_path, "download")?;
 
+    // 先把 latest 解析成具体标签，再从同一个 release 取可执行文件与 SHA2-256SUMS，
+    // 避免两次请求之间 latest 指向不同版本。
+    // 后续可选：yt-dlp 还发布了 SHA2-256SUMS.sig（GPG 签名），可再校验清单本身的签名。
+    let repository = utils::get_ytdlp_channel().repository();
+    let tag = resolve_release_tag(&format!(
+        "https://github.com/{}/releases/latest",
+        repository
+    ))
+    .await?;
+    let (asset_url, sums_url) = utils::get_ytdlp_release_urls(repository, &tag);
+    let sums = fetch_release_text(&sums_url).await?;
+    let expected = find_sha256_in_sums(&sums, utils::get_ytdlp_asset_name())
+        .ok_or_else(|| format!("err_checksum_missing:{}", utils::get_ytdlp_asset_name()))?;
+
     download_to_file_with_progress(
-        &app,
-        "yt-dlp",
-        operation,
-        &utils::get_ytdlp_download_url(),
-        &temp_path,
-        0.0,
-        100.0,
+        &app, "yt-dlp", operation, &asset_url, &temp_path, 0.0, 100.0,
     )
     .await?;
+    // 校验失败时删除临时文件，现有 yt-dlp 保持不变
+    verify_sha256_or_remove(&temp_path, &expected).await?;
 
     // Unix: 设置可执行权限
     #[cfg(unix)]
