@@ -190,6 +190,109 @@ pub(super) async fn download_to_file_with_progress(
     Ok(())
 }
 
+/// 下载发行附带的小型文本文件（校验和清单等）。
+pub(super) async fn fetch_release_text(url: &str) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(DOWNLOAD_TIMEOUT)
+        .build()
+        .map_err(|e| format!("err_create_http_client:{}", e))?;
+    client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("err_download_checksum:{}", e))?
+        .error_for_status()
+        .map_err(|e| format!("err_download_checksum:{}", e))?
+        .text()
+        .await
+        .map_err(|e| format!("err_download_checksum:{}", e))
+}
+
+fn is_sha256_hex(token: &str) -> bool {
+    token.len() == 64 && token.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// 从 `sha256sum` 格式的清单（`<hex>  <name>` 或 `<hex> *<name>`）中取出指定文件的摘要。
+pub(super) fn find_sha256_in_sums(sums: &str, file_name: &str) -> Option<String> {
+    sums.lines().find_map(|line| {
+        let (hash, name) = line.trim().split_once(char::is_whitespace)?;
+        let name = name.trim_start();
+        let name = name.strip_prefix('*').unwrap_or(name);
+        (is_sha256_hex(hash) && name == file_name).then(|| hash.to_ascii_lowercase())
+    })
+}
+
+/// 从单个资产的校验文件中取出摘要。
+///
+/// Deno 的 `<asset>.sha256sum` 在 Linux/macOS 上是 `sha256sum` 格式，在 Windows 上
+/// 是 PowerShell `Get-FileHash` 的列表输出（`Hash : <大写十六进制>`），因此取文件里
+/// 唯一的 64 位十六进制串；出现多个不同摘要时视为无法判断。
+pub(super) fn find_single_sha256(text: &str) -> Option<String> {
+    let mut found: Option<String> = None;
+    for token in text.split(|c: char| !c.is_ascii_hexdigit()) {
+        if !is_sha256_hex(token) {
+            continue;
+        }
+        let token = token.to_ascii_lowercase();
+        match &found {
+            Some(existing) if *existing != token => return None,
+            _ => found = Some(token),
+        }
+    }
+    found
+}
+
+/// 计算文件的 SHA-256（小写十六进制）
+pub(super) async fn sha256_file(path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncReadExt;
+
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(|e| format!("err_open_file:{}", e))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .await
+            .map_err(|e| format!("err_read_file:{}", e))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{:02x}", byte))
+        .collect())
+}
+
+/// 校验下载文件的 SHA-256；不匹配或无法计算时删除该文件。
+///
+/// 必须在设置可执行权限、试运行或替换正式文件之前调用，确保未经校验的
+/// 二进制既不会被执行，也不会覆盖现有版本。
+pub(super) async fn verify_sha256_or_remove(path: &Path, expected: &str) -> Result<(), String> {
+    let actual = match sha256_file(path).await {
+        Ok(actual) => actual,
+        Err(error) => {
+            let _ = tokio::fs::remove_file(path).await;
+            return Err(error);
+        }
+    };
+    if actual.eq_ignore_ascii_case(expected) {
+        Ok(())
+    } else {
+        let _ = tokio::fs::remove_file(path).await;
+        Err(format!(
+            "err_checksum_mismatch:expected={},actual={}",
+            expected.to_ascii_lowercase(),
+            actual
+        ))
+    }
+}
+
 /// 运行 `--version` 验证刚下载的可执行文件确实可启动。
 ///
 /// PyInstaller 打包的 yt-dlp 与静态构建的 FFmpeg 都只有真正启动后才能确认
@@ -335,6 +438,76 @@ fn quickjs_version(first_line: &str) -> Option<&str> {
             .bytes()
             .all(|byte| byte.is_ascii_digit() || byte == b'.' || byte == b'-'))
     .then_some(version)
+}
+
+#[cfg(test)]
+mod checksum_tests {
+    use super::{find_sha256_in_sums, find_single_sha256, verify_sha256_or_remove};
+
+    const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+    #[test]
+    fn picks_the_matching_entry_from_a_sha256sums_manifest() {
+        let sums = "\
+f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d  yt-dlp.exe
+767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795  yt-dlp_linux
+0F922C15CCC0B83EEFA1C8BC9104E434318C4BF16E408E1EE93B7745A6EFE0AA *yt-dlp_macos
+1111111111111111111111111111111111111111111111111111111111111111  yt-dlp.exe.zip
+";
+        assert_eq!(
+            find_sha256_in_sums(sums, "yt-dlp.exe").as_deref(),
+            Some("f5389d3698ecde4ef06f4e6b1ce0294fe9ac1396228c8990b8d3416d6d177a7d")
+        );
+        assert_eq!(
+            find_sha256_in_sums(sums, "yt-dlp_macos").as_deref(),
+            Some("0f922c15ccc0b83eefa1c8bc9104e434318c4bf16e408e1ee93b7745a6efe0aa")
+        );
+        assert_eq!(find_sha256_in_sums(sums, "yt-dlp"), None);
+        assert_eq!(find_sha256_in_sums("not a manifest", "yt-dlp.exe"), None);
+    }
+
+    #[test]
+    fn reads_deno_checksum_files_in_both_published_formats() {
+        let unix = "e890975bc2549807bbcc0b584ffafda72cc7c93349dd99c80483dd784f6c4609  deno-x86_64-unknown-linux-gnu.zip\n";
+        assert_eq!(
+            find_single_sha256(unix).as_deref(),
+            Some("e890975bc2549807bbcc0b584ffafda72cc7c93349dd99c80483dd784f6c4609")
+        );
+        let powershell = "\r\nAlgorithm : SHA256\r\nHash      : CBA84B26E0DF5AE7F74FC66B86A95B866872A86292EBD84FA1E959927EDD93BF\r\nPath      : C:\\a\\deno\\deno\\target\\release\\deno-x86_64-pc-windows-msvc.zip\r\n\r\n";
+        assert_eq!(
+            find_single_sha256(powershell).as_deref(),
+            Some("cba84b26e0df5ae7f74fc66b86a95b866872a86292ebd84fa1e959927edd93bf")
+        );
+        assert_eq!(find_single_sha256(""), None);
+        let ambiguous = format!("{}\n{}\n", "a".repeat(64), "b".repeat(64));
+        assert_eq!(find_single_sha256(&ambiguous), None);
+    }
+
+    #[test]
+    fn checksum_mismatch_deletes_the_download_and_a_match_keeps_it() {
+        let dir = std::env::temp_dir().join(format!("ydl-checksum-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let good = dir.join("good.bin");
+        std::fs::write(&good, b"abc").unwrap();
+        runtime
+            .block_on(verify_sha256_or_remove(&good, &ABC_SHA256.to_uppercase()))
+            .unwrap();
+        assert!(good.exists());
+
+        let tampered = dir.join("tampered.bin");
+        std::fs::write(&tampered, b"abd").unwrap();
+        let error = runtime
+            .block_on(verify_sha256_or_remove(&tampered, ABC_SHA256))
+            .unwrap_err();
+        assert!(error.starts_with("err_checksum_mismatch:"));
+        assert!(!tampered.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
 
 #[cfg(test)]
