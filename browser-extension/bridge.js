@@ -1,80 +1,48 @@
 const BRIDGE_URL = "http://127.0.0.1:17654";
+const TOKEN_HEADER = "X-YDL-Token";
+const TOKEN_STORAGE_KEY = "bridgeToken";
 
 /**
- * 收集指定页面 URL 相关的浏览器 Cookie
- * 优先按当前 Tab 所在的 cookie store 查询，兜底按域名及父域查询
+ * 读取用户从桌面端复制并保存的配对令牌
+ *
+ * @returns {Promise<string>} 配对令牌（未配对时为空字符串）
+ */
+export const getBridgeToken = async () => {
+  const stored = await chrome.storage.local.get(TOKEN_STORAGE_KEY);
+  return typeof stored[TOKEN_STORAGE_KEY] === "string" ? stored[TOKEN_STORAGE_KEY] : "";
+};
+
+/**
+ * 保存配对令牌（去除首尾空白）
+ *
+ * @param {string} token 桌面端「浏览器扩展」页面显示的令牌
+ * @returns {Promise<void>}
+ */
+export const setBridgeToken = async (token) => {
+  await chrome.storage.local.set({ [TOKEN_STORAGE_KEY]: String(token || "").trim() });
+};
+
+/**
+ * 收集浏览器访问指定页面 URL 时会携带的 Cookie
+ *
+ * 只查询该标签页所在的 cookie store；没有标签页时使用当前上下文的默认 store。
+ * `chrome.cookies.getAll({ url })` 已包含父域（如 .youtube.com）上会随请求发送的 Cookie，
+ * 因此不再遍历其他 cookie store，也不再按域名或父域扩大范围。
  *
  * @param {string} url 目标网页完整 URL
  * @param {number} [tabId] 当前标签页 ID（可选）
  * @returns {Promise<Array<{domain: string, hostOnly: boolean, path: string, secure: boolean, httpOnly: boolean, expirationDate?: number, name: string, value: string}>>} 提取的标准 Cookie 数组
  */
 export const collectCookies = async (url, tabId) => {
-  const parsed = new URL(url);
-  const hostname = parsed.hostname;
-
-  // 先尝试用 tab 关联的 cookie store
-  let storeIds = [];
+  const details = { url };
   if (Number.isInteger(tabId)) {
     const stores = await chrome.cookies.getAllCookieStores();
     const matchedStore = stores.find((candidate) => candidate.tabIds.includes(tabId));
-    if (matchedStore) storeIds.push(matchedStore.id);
-  }
-  // 兜底：如果没找到 store，或者第一次查询结果为空，就遍历所有 cookie store
-  if (storeIds.length === 0) {
-    const stores = await chrome.cookies.getAllCookieStores();
-    storeIds = stores.map((storeCandidate) => storeCandidate.id);
-  }
-  if (!storeIds.includes("0")) storeIds.push("0");
-
-  const allCookies = [];
-  const seen = new Set();
-  for (const storeId of storeIds) {
-    const details = { url, storeId };
-    const cookies = await chrome.cookies.getAll(details);
-    for (const cookie of cookies || []) {
-      const key = `${cookie.domain}|${cookie.path}|${cookie.name}|${storeId}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        allCookies.push(cookie);
-      }
-    }
+    if (matchedStore) details.storeId = matchedStore.id;
   }
 
-  // 兜底：如果按 url 查询仍为空，尝试按 domain 查询
-  if (allCookies.length === 0) {
-    for (const storeId of storeIds) {
-      const domainCookies = await chrome.cookies.getAll({
-        domain: hostname,
-        storeId,
-      });
-      for (const cookie of domainCookies || []) {
-        const key = `${cookie.domain}|${cookie.path}|${cookie.name}|${storeId}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          allCookies.push(cookie);
-        }
-      }
-    }
-    // 也查父域（例如 youtube.com 的 cookie 可能注册在 .youtube.com）
-    const parentDomain = hostname.split(".").slice(1).join(".");
-    if (parentDomain && parentDomain !== hostname) {
-      for (const storeId of storeIds) {
-        const parentCookies = await chrome.cookies.getAll({
-          domain: `.${parentDomain}`,
-          storeId,
-        });
-        for (const cookie of parentCookies || []) {
-          const key = `${cookie.domain}|${cookie.path}|${cookie.name}|${storeId}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            allCookies.push(cookie);
-          }
-        }
-      }
-    }
-  }
-
-  return allCookies.map((cookie) => ({
+  const cookies = await chrome.cookies.getAll(details);
+  return (cookies || []).map((cookie) => ({
     domain: cookie.domain,
     hostOnly: cookie.hostOnly,
     path: cookie.path || "/",
@@ -120,12 +88,15 @@ export const collectCookiesForUrls = async (items) => {
 const request = async (path, options = {}, timeout = 2500) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  const token = await getBridgeToken();
   try {
     const response = await fetch(`${BRIDGE_URL}${path}`, {
       ...options,
+      headers: { ...(options.headers || {}), ...(token ? { [TOKEN_HEADER]: token } : {}) },
       signal: controller.signal,
       cache: "no-store",
     });
+    if (response.status === 401) throw new Error("pairing_required");
     if (!response.ok) throw new Error(`bridge_http_${response.status}`);
     return response.status === 204 ? null : response.json();
   } finally {
@@ -218,6 +189,11 @@ export const sendToApp = async (target, options = {}, legacyTabId = null) => {
 
   if (urls.length === 0) {
     throw new Error("no_urls");
+  }
+
+  // 未配对时不收集 Cookie，直接提示用户先粘贴令牌
+  if (!(await getBridgeToken())) {
+    throw new Error("pairing_required");
   }
 
   if (!(await isAppReady()) && !(await wakeApp())) {

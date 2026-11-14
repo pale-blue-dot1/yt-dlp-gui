@@ -101,5 +101,23 @@
   },
   "menuSendAllTabs": {
     "message": "批量发送所有标签页到 YDL GUI"
+  },
+  "popupPairingLabel": {
+    "message": "配对令牌"
+  },
+  "popupPairingHint": {
+    "message": "从 YDL GUI 的「浏览器扩展」页面复制并粘贴到这里"
+  },
+  "popupPairingSave": {
+    "message": "保存"
+  },
+  "popupPairingSaved": {
+    "message": "令牌已保存"
+  },
+  "popupPairingRequired": {
+    "message": "需要配对：请粘贴 YDL GUI 中的令牌"
+  },
+  "notifyPairingRequired": {
+    "message": "请先配对：将 YDL GUI「浏览器扩展」页面中的令牌粘贴到扩展弹窗中。"
   }
 }
