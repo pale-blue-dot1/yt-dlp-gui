@@ -197,6 +197,7 @@ pub(super) fn build_download_args(
     app: &AppHandle,
     params: &DownloadParams,
 ) -> Result<Vec<String>, String> {
+    utils::validate_http_url(&params.url)?;
     validate_time_range(params.start_time, params.end_time)?;
     let mut args: Vec<String> = vec![
         "--newline".to_string(),
@@ -353,9 +354,7 @@ pub(super) fn build_download_args(
         args.push("--live-from-start".to_string());
     }
 
-    // URL（必须放在最后）
-    args.push(params.url.clone());
-
+    // URL 由调用方在追加完全部选项后通过 utils::append_url_args 放到 `--` 之后
     Ok(args)
 }
 

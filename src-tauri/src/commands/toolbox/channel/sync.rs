@@ -397,7 +397,10 @@ pub async fn channel_sync_start(
                 cookie_browser.as_deref(),
                 proxy.as_deref(),
             );
-            args.push(target_url.clone());
+            if let Err(error) = utils::append_url_args(&mut args, [target_url]) {
+                encountered_error = Some(error);
+                break;
+            }
 
             let mut cmd = tokio::process::Command::new(&ytdlp_path);
             cmd.args(&args)

@@ -47,6 +47,8 @@ pub async fn start_download(
     full_args.push("--print-to-file".to_string());
     full_args.push("after_move:filepath".to_string());
     full_args.push(filepath_file.clone());
+    // URL 必须放在最后，并以 `--` 与选项隔开
+    utils::append_url_args(&mut full_args, [&params.url])?;
 
     // 启动 yt-dlp 子进程
     let mut cmd = tokio::process::Command::new(&ytdlp_path);

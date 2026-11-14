@@ -99,6 +99,7 @@ async fn download_live_chat(
     cookie_browser: Option<&str>,
     proxy: Option<&str>,
 ) -> Result<PathBuf, String> {
+    utils::validate_http_url(url)?;
     let temp_dir = std::env::temp_dir().join(format!(
         "ytdlp-livechat-{}",
         std::time::SystemTime::now()
@@ -134,7 +135,7 @@ async fn download_live_chat(
     args.extend(utils::build_plugin_args(app));
     args.extend(utils::build_youtube_extractor_args());
     append_cookie_proxy_args(&mut args, cookie_file, cookie_browser, proxy);
-    args.push(url.to_owned());
+    utils::append_url_args(&mut args, [url])?;
 
     let output = match run_ytdlp_capture(app, Some(run_id), args).await {
         Ok(output) => output,

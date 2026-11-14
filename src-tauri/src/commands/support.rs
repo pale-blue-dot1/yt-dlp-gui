@@ -152,7 +152,7 @@ pub async fn run_ytdlp_json_tracked(
         args.push(a.to_string());
     }
     append_cookie_proxy_args(&mut args, cookie_file, cookie_browser, proxy);
-    args.push(url.to_string());
+    utils::append_url_args(&mut args, [url])?;
 
     let output = run_ytdlp_capture(app, run_id, args).await?;
 

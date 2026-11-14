@@ -50,7 +50,7 @@ pub(super) async fn run_ytdlp_tool(
 
     args.extend(extra_args);
     append_cookie_proxy_args(&mut args, cookie_file, cookie_browser, proxy);
-    args.push(url.to_string());
+    utils::append_url_args(&mut args, [url])?;
 
     let output = run_ytdlp_capture(app, run_id, args).await?;
     let stdout = String::from_utf8_lossy(&output.stdout);
