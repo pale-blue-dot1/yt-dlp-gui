@@ -47,12 +47,16 @@ export function extractTaskFilePaths(task: DownloadTask): string[] {
  *
  * 只把该任务的精确输出路径交给后端，由后端推导临时文件；
  * 后端不再按标题做模糊匹配，避免误删标题同前缀的其它任务的文件。
+ * 后端按任务 ID 查出下载目录并只清理目录内的文件，因此须在删除任务记录前调用。
  */
 export async function cleanTaskResiduals(task: DownloadTask): Promise<string[]> {
   try {
     const knownPaths = extractTaskFilePaths(task);
     if (knownPaths.length === 0) return [];
-    const deleted = await invoke<string[]>("clean_task_residual_files", { knownPaths });
+    const deleted = await invoke<string[]>("clean_task_residual_files", {
+      taskId: task.id,
+      knownPaths,
+    });
     return deleted || [];
   } catch (error) {
     console.warn("Failed to clean task residuals:", error);

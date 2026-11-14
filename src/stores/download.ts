@@ -580,8 +580,9 @@ export const useDownloadStore = defineStore("download", () => {
     await Promise.all(cancelling);
     await Promise.all(ids.map((id) => pendingWrites.get(id)));
     if (ids.length > 0) {
-      await invoke("db_delete_tasks", { ids }).catch(() => {});
+      // 残留清理按任务记录确定下载目录，必须在删除记录之前执行
       if (cleanResiduals) await cleanMultipleTasksResiduals(targets);
+      await invoke("db_delete_tasks", { ids }).catch(() => {});
     }
   };
 
