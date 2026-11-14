@@ -82,6 +82,7 @@ pub fn run() {
         .manage(app::browser_bridge::BrowserBridgeState::default())
         .manage(commands::DownloadState::default())
         .manage(platform::process::ProcessRegistry::default())
+        .manage(commands::SaveTargets::default())
         .invoke_handler(tauri::generate_handler![
             app::commands::update_tray_menu,
             app::commands::set_tray_visible,
@@ -123,6 +124,7 @@ pub fn run() {
             commands::tool_save_subtitle,
             commands::tool_download_text,
             commands::tool_save_text_to_file,
+            commands::pick_save_path,
             commands::tool_start_task,
             commands::tool_get_task_state,
             commands::tool_get_running_tasks,

@@ -2,9 +2,10 @@
 
 use crate::commands::support::{self, build_http_client};
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 
 use super::runner::run_ytdlp_tool;
+use super::save_target::SaveTargets;
 
 /// 轻量获取视频封面列表（跳过格式检查，速度更快）
 #[tauri::command]
@@ -31,10 +32,12 @@ pub async fn tool_fetch_thumbnails(
 /// 将指定 URL 的图片下载到指定文件路径（另存为）
 #[tauri::command]
 pub async fn tool_save_thumbnail(
+    targets: State<'_, SaveTargets>,
     url: String,
     file_path: String,
     proxy: Option<String>,
 ) -> Result<(), String> {
+    let path = targets.take(&file_path)?;
     let client = build_http_client(proxy.as_deref())?;
 
     let response = client
@@ -52,13 +55,13 @@ pub async fn tool_save_thumbnail(
         .await
         .map_err(|e| format!("err_read_thumbnail_data:{}", e))?;
 
-    if let Some(parent) = std::path::Path::new(&file_path).parent() {
+    if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
             .map_err(|e| format!("err_create_dir:{}", e))?;
     }
 
-    tokio::fs::write(&file_path, &bytes)
+    tokio::fs::write(&path, &bytes)
         .await
         .map_err(|e| format!("err_save_file:{}", e))?;
 

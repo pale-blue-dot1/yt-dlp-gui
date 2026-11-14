@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/utils/saveDialog";
 import { useI18n } from "vue-i18n";
 import { showErrorDialog, formatError, sanitizeFilename } from "@/utils/format";
 import { useSettingStore } from "@/stores/setting";
@@ -250,7 +250,7 @@ export const useChannelArchive = () => {
     if (!channel || videos.value.length === 0) return;
 
     try {
-      const filePath = await save({
+      const filePath = await pickSavePath({
         title: t("channelArchive.exportVideos"),
         defaultPath: `${sanitizeFilename(channel.title)}_videos.${format}`,
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
