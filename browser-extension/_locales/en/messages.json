@@ -101,5 +101,23 @@
   },
   "menuSendAllTabs": {
     "message": "Batch send all tabs to YDL GUI"
+  },
+  "popupPairingLabel": {
+    "message": "Pairing token"
+  },
+  "popupPairingHint": {
+    "message": "Copy it from the Browser Extension page in YDL GUI and paste it here"
+  },
+  "popupPairingSave": {
+    "message": "Save"
+  },
+  "popupPairingSaved": {
+    "message": "Token saved"
+  },
+  "popupPairingRequired": {
+    "message": "Pairing required: paste the token from YDL GUI"
+  },
+  "notifyPairingRequired": {
+    "message": "Pair the extension first: paste the token from the Browser Extension page in YDL GUI into the extension popup."
   }
 }

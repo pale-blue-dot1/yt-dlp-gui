@@ -3,7 +3,7 @@
  * 负责：多语言注入、标准/批量模式切换、当前标签页信息联动、多标签页勾选与状态管理、深链接/本地桥发送与恢复。
  */
 
-import { sendToApp } from "./bridge.js";
+import { getBridgeToken, sendToApp, setBridgeToken } from "./bridge.js";
 import { createTranslator, getLanguage, setLanguage } from "./i18n.js";
 
 let translate = (translationKey, substitutions) => translationKey;
@@ -128,6 +128,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const cookieRow = document.getElementById("cookie-row");
   const fallback = document.getElementById("fallback");
 
+  const tokenInput = document.getElementById("token-input");
+  const tokenSave = document.getElementById("token-save");
+  const tokenStatus = document.getElementById("token-status");
+
   const batchList = document.getElementById("batch-list");
   const batchEmpty = document.getElementById("batch-empty");
   const batchSelectAll = document.getElementById("batch-select-all");
@@ -137,6 +141,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   let activeTab = null;
   let validBatchTabs = [];
   let isSubmitting = false;
+
+  // 0. 配对令牌：从桌面端「浏览器扩展」页面复制后粘贴保存
+  tokenInput.value = await getBridgeToken();
+  tokenStatus.textContent = translate(tokenInput.value ? "popupPairingSaved" : "popupPairingHint");
+  tokenSave.addEventListener("click", async () => {
+    await setBridgeToken(tokenInput.value);
+    tokenInput.value = await getBridgeToken();
+    tokenStatus.textContent = translate(
+      tokenInput.value ? "popupPairingSaved" : "popupPairingHint",
+    );
+  });
 
   // 1. 初始化标准模式：获取当前活动标签页
   activeTab = await queryActiveTab();
@@ -353,11 +368,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       }, 1500);
     } catch (error) {
       console.error("[YDL GUI] send failed:", error);
+      const pairingRequired = error?.message === "pairing_required";
       btnText.textContent = translate("popupFailed");
       if (currentMode === "standard") {
-        setStatusPill("bad", "popupFailed");
+        setStatusPill("bad", pairingRequired ? "popupPairingRequired" : "popupFailed");
       }
-      fallback.hidden = false;
+      if (pairingRequired) {
+        tokenStatus.textContent = translate("popupPairingRequired");
+        tokenInput.focus();
+      }
+      fallback.hidden = pairingRequired;
       isSubmitting = false;
       sendBtn.disabled = false;
     }

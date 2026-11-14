@@ -123,6 +123,7 @@
     "install2": "Open chrome://extensions (or edge://extensions) and turn on \"Developer mode\" in the top-right.",
     "install3": "Click \"Load unpacked\" and select the folder the app opened, which contains manifest.json.",
     "install4": "Pin the YDL GUI Helper icon next to the address bar for quick access.",
+    "install5": "Open the extension popup, paste the pairing token shown below into \"Pairing token\" and save it. The app ignores requests without it.",
     "usageHeading": "Use",
     "usage1": "Open a supported video page in your browser.",
     "usage2": "Click the YDL GUI icon, or right-click the page / a video link and choose \"Send to YDL GUI\".",
@@ -132,7 +133,13 @@
     "supportedHeading": "Supported sites",
     "openLocalFolder": "Open extension folder",
     "packageSaved": "Extension folder opened; select this folder in your browser",
-    "viewSource": "View source on GitHub"
+    "viewSource": "View source on GitHub",
+    "pairingHeading": "Pairing token",
+    "pairingHint": "The extension must send this token with every request. Keep it private; reset it if another program or extension may have seen it.",
+    "pairingCopied": "Pairing token copied",
+    "pairingReset": "Reset token",
+    "pairingResetConfirm": "The extension will stop working until you paste the new token into it. Continue?",
+    "pairingResetDone": "New pairing token created. Paste it into the extension."
   },
   "channelArchive": {
     "title": "Channel Video Archive",

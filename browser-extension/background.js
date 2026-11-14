@@ -75,8 +75,8 @@ const sendToApp = async (
       items,
     });
     notify(isSuccess ? "notifySent" : "notifyFailed");
-  } catch {
-    notify("notifyFailed");
+  } catch (error) {
+    notify(error?.message === "pairing_required" ? "notifyPairingRequired" : "notifyFailed");
   }
 };
 

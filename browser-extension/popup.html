@@ -58,6 +58,24 @@
       <div id="batch-empty" class="batch-empty" hidden data-i18n="popupNoValidTabs">未找到有效的网页标签</div>
     </section>
 
+    <!-- 与桌面端配对：本地桥只接受携带该令牌的请求 -->
+    <div class="row" id="token-row">
+      <div class="row-text">
+        <div class="row-label" data-i18n="popupPairingLabel">配对令牌</div>
+        <div class="row-hint" id="token-status" data-i18n="popupPairingHint">从 YDL GUI 的「浏览器扩展」页面复制并粘贴到这里</div>
+        <div class="url-input-wrap">
+          <input
+            id="token-input"
+            type="password"
+            class="url-input"
+            spellcheck="false"
+            autocomplete="off"
+          >
+        </div>
+      </div>
+      <button class="text-btn" id="token-save" type="button" data-i18n="popupPairingSave">保存</button>
+    </div>
+
     <!-- 通用 Cookie 发送选项 -->
     <div class="row" id="cookie-row">
       <div class="row-text">

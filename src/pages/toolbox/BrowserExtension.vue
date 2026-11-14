@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import IconMdiDownloadOutline from "~icons/mdi/download-outline";
 import IconMdiCursorDefaultClick from "~icons/mdi/cursor-default-click";
 import IconMdiOpenInNew from "~icons/mdi/open-in-new";
@@ -11,6 +12,41 @@ const { t } = useI18n();
 const REPO_URL = "https://github.com/imsyy/yt-dlp-gui/tree/master/browser-extension";
 const SUPPORTED_SITES_URL = "https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md";
 const preparing = ref(false);
+/** 浏览器扩展向本地桥发请求时必须携带的配对令牌 */
+const pairingToken = ref("");
+
+const loadPairingToken = async () => {
+  try {
+    pairingToken.value = await invoke<string>("get_browser_bridge_token");
+  } catch (error: unknown) {
+    window.$message.error(String(error));
+  }
+};
+
+const copyPairingToken = async () => {
+  if (!pairingToken.value) return;
+  await writeText(pairingToken.value);
+  window.$message.success(t("browserExt.pairingCopied"));
+};
+
+const resetPairingToken = () => {
+  window.$dialog.warning({
+    title: t("browserExt.pairingReset"),
+    content: t("browserExt.pairingResetConfirm"),
+    positiveText: t("common.confirm"),
+    negativeText: t("common.cancel"),
+    onPositiveClick: async () => {
+      try {
+        pairingToken.value = await invoke<string>("reset_browser_bridge_token");
+        window.$message.success(t("browserExt.pairingResetDone"));
+      } catch (error: unknown) {
+        window.$message.error(String(error));
+      }
+    },
+  });
+};
+
+onMounted(loadPairingToken);
 
 const prepareExtension = async () => {
   preparing.value = true;
@@ -61,6 +97,33 @@ const prepareExtension = async () => {
 
     <n-alert type="info" :bordered="false">{{ $t("browserExt.intro") }}</n-alert>
 
+    <n-card size="small" :title="$t('browserExt.pairingHeading')">
+      <n-flex vertical :size="8">
+        <n-text depth="3">{{ $t("browserExt.pairingHint") }}</n-text>
+        <n-input-group>
+          <n-input
+            :value="pairingToken"
+            readonly
+            type="password"
+            show-password-on="click"
+            :input-props="{ spellcheck: false, autocomplete: 'off' }"
+          />
+          <n-button :disabled="!pairingToken" @click="copyPairingToken">
+            <template #icon>
+              <n-icon><icon-mdi-content-copy /></n-icon>
+            </template>
+            {{ $t("common.copy") }}
+          </n-button>
+          <n-button @click="resetPairingToken">
+            <template #icon>
+              <n-icon><icon-mdi-refresh /></n-icon>
+            </template>
+            {{ $t("browserExt.pairingReset") }}
+          </n-button>
+        </n-input-group>
+      </n-flex>
+    </n-card>
+
     <n-grid cols="1 720:2" :x-gap="12" :y-gap="12">
       <n-grid-item>
         <n-card size="small" :title="$t('browserExt.installHeading')">
@@ -68,7 +131,7 @@ const prepareExtension = async () => {
             <n-icon><icon-mdi-download-outline /></n-icon>
           </template>
           <ol class="steps">
-            <li v-for="index in 4" :key="index">{{ $t(`browserExt.install${index}`) }}</li>
+            <li v-for="index in 5" :key="index">{{ $t(`browserExt.install${index}`) }}</li>
           </ol>
         </n-card>
       </n-grid-item>

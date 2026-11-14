@@ -123,6 +123,7 @@
     "install2": "打开 chrome://extensions（或 edge://extensions），在右上角启用「开发者模式」。",
     "install3": "点击「加载已解压的扩展程序」，选择应用刚才打开且包含 manifest.json 的文件夹。",
     "install4": "将 YDL GUI 助手图标固定到地址栏旁，方便随时使用。",
+    "install5": "打开扩展弹窗，将下方的配对令牌粘贴到“配对令牌”中并保存。没有令牌的请求会被应用拒绝。",
     "usageHeading": "使用",
     "usage1": "在浏览器中打开支持的视频页面。",
     "usage2": "点击 YDL GUI 图标，或在页面 / 视频链接上右键选择「发送到 YDL GUI」。",
@@ -132,7 +133,13 @@
     "supportedHeading": "支持的网站",
     "openLocalFolder": "打开扩展目录",
     "packageSaved": "扩展目录已打开，请在浏览器中选择该目录",
-    "viewSource": "在 GitHub 查看源码"
+    "viewSource": "在 GitHub 查看源码",
+    "pairingHeading": "配对令牌",
+    "pairingHint": "扩展每次请求都必须携带此令牌。请勿泄露；如怀疑被其他程序或扩展看到，请重置。",
+    "pairingCopied": "已复制配对令牌",
+    "pairingReset": "重置令牌",
+    "pairingResetConfirm": "重置后，扩展在粘贴新令牌之前将无法使用。是否继续？",
+    "pairingResetDone": "已生成新的配对令牌，请将其粘贴到扩展中。"
   },
   "channelArchive": {
     "title": "频道视频归档",

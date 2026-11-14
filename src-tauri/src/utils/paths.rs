@@ -234,6 +234,27 @@ pub fn get_cookie_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data.join("cookies.txt"))
 }
 
+/// 写入只应由当前用户读取的文件（Cookie、浏览器桥配对令牌）。
+///
+/// 先删除旧文件再独占新建，Unix 上权限为 0600，内容在写入过程中也不会被其他用户读到。
+/// 调用方再把临时文件原子改名为正式文件时，权限随文件一起保留。
+pub async fn write_private_file(path: &std::path::Path, contents: &[u8]) -> std::io::Result<()> {
+    use tokio::io::AsyncWriteExt;
+
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    let mut options = tokio::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options.open(path).await?;
+    file.write_all(contents).await?;
+    file.flush().await
+}
+
 /// 获取 yt-dlp 插件目录路径
 pub fn get_plugin_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let app_data = app
@@ -241,4 +262,31 @@ pub fn get_plugin_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| format!("err_app_data_dir:{}", e))?;
     Ok(app_data.join("yt-dlp-plugins"))
+}
+
+#[cfg(test)]
+mod private_file_tests {
+    use super::write_private_file;
+
+    #[test]
+    fn replaces_existing_content_with_an_owner_only_file() {
+        let dir = std::env::temp_dir().join(format!("ydl-private-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("cookies.txt.tmp");
+        std::fs::write(&path, b"old content that is longer").unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        runtime.block_on(write_private_file(&path, b"new")).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

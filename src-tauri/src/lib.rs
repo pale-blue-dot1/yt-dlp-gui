@@ -89,6 +89,8 @@ pub fn run() {
             app::commands::reveal_browser_extension,
             app::commands::take_cli_open_request,
             app::browser_bridge::take_browser_extension_imports,
+            app::browser_bridge::get_browser_bridge_token,
+            app::browser_bridge::reset_browser_bridge_token,
             commands::get_platform,
             commands::set_tool_sources,
             commands::set_js_runtime,
