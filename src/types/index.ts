@@ -7,6 +7,8 @@ export interface CliOpenRequest {
   url: string | null;
   cookieFile: string | null;
   downloadDir: string | null;
+  /** URL 来自 ytdlp-gui:// 深链接，需用户确认后才解析 */
+  fromDeepLink?: boolean;
 }
 
 export interface BrowserExtensionImport {

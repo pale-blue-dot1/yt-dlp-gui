@@ -7,6 +7,8 @@ pub struct CliOpenRequest {
     pub url: Option<String>,
     pub cookie_file: Option<String>,
     pub download_dir: Option<String>,
+    /// URL 来自 `ytdlp-gui://` 深链接（任意网页都能触发），前端不得自动开始解析
+    pub from_deep_link: bool,
 }
 
 impl CliOpenRequest {
@@ -57,6 +59,7 @@ where
                         for (k, v) in parsed.query_pairs() {
                             if k == "url" && is_http_url(&v) {
                                 options.request.url = Some(v.to_string());
+                                options.request.from_deep_link = true;
                                 break;
                             }
                         }
@@ -99,6 +102,7 @@ mod tests {
                 url: Some("https://example.com/video".to_string()),
                 cookie_file: Some("/tmp/cookies.txt".to_string()),
                 download_dir: Some("/tmp/downloads".to_string()),
+                from_deep_link: false,
             }
         );
         assert_eq!(parsed.ytdlp_path, Some(PathBuf::from("/opt/tools/yt-dlp")));
@@ -139,6 +143,22 @@ mod tests {
                 .url,
             None
         );
+    }
+
+    #[test]
+    fn marks_urls_that_arrive_through_a_deep_link() {
+        let parsed = parse_cli_args([
+            "ydl-gui",
+            "ytdlp-gui://download?url=https%3A%2F%2Fexample.com%2Fvideo",
+        ]);
+        assert_eq!(
+            parsed.request.url.as_deref(),
+            Some("https://example.com/video")
+        );
+        assert!(parsed.request.from_deep_link);
+
+        let direct = parse_cli_args(["ydl-gui", "--url", "https://example.com/video"]);
+        assert!(!direct.request.from_deep_link);
     }
 
     #[test]

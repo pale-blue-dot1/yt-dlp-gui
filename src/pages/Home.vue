@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { isValidUrl } from "@/utils/validate";
+import { DEEP_LINK_SOURCE } from "@/utils/url";
 import { useVideoStore } from "@/stores/video";
 import { createPendingItem, usePendingStore } from "@/stores/pending";
 import { useHistoryStore } from "@/stores/history";
@@ -172,6 +173,8 @@ watchEffect((onCleanup) => {
  */
 const applyExternalImport = (routeQuery: Record<string, unknown>): void => {
   const targetMode = routeQuery.mode as HomeMode | undefined;
+  // 深链接可由任意网页触发，且解析会带上已保存的 Cookie 与代理：只填入链接，等用户点击
+  const requiresConfirmation = routeQuery.source === DEEP_LINK_SOURCE;
   let importedUrls: string[] = [];
 
   if (typeof routeQuery.urls === "string") {
@@ -212,7 +215,11 @@ const applyExternalImport = (routeQuery: Record<string, unknown>): void => {
     settingStore.homeMode = "standard";
     url.value = importedUrls[0];
     historyIndex.value = -1;
-    handleSearch();
+    if (requiresConfirmation) {
+      window.$message.info(translate("home.deepLinkReceived"));
+    } else {
+      handleSearch();
+    }
   }
 };
 

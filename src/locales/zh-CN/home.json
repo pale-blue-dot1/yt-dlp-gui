@@ -14,6 +14,7 @@
     "batchEmpty": "请至少输入一个有效链接",
     "batchLimit": "单次最多解析 {count} 个链接",
     "batchPasted": "已从剪贴板识别 {count} 个链接",
+    "deepLinkReceived": "已从外部打开链接，请确认无误后点击“解析”继续",
     "batchComplete": "批量解析完成：成功 {succeeded} 个，失败 {failed} 个",
     "batchAllFailed": "所有链接均解析失败",
     "pendingBehavior": "解析后进入待下载页面",

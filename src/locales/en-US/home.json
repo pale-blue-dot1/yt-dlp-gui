@@ -14,6 +14,7 @@
     "batchEmpty": "Enter at least one valid URL",
     "batchLimit": "Up to {count} URLs can be parsed at once",
     "batchPasted": "Detected {count} URLs from the clipboard",
+    "deepLinkReceived": "A link was opened from outside the app. Check it, then click Parse to continue",
     "batchComplete": "Batch parsing complete: {succeeded} succeeded, {failed} failed",
     "batchAllFailed": "All URLs failed to parse",
     "pendingBehavior": "Open pending options after parsing",

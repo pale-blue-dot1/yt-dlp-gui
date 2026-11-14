@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { onOpenUrl, getCurrent as getCurrentDeepLink } from "@tauri-apps/plugin-deep-link";
 import { useSettingStore } from "@/stores/setting";
-import { normalizeDeepLinkVideoUrl } from "@/utils/url";
+import { DEEP_LINK_SOURCE, normalizeDeepLinkVideoUrl } from "@/utils/url";
 import type { BrowserExtensionImport, CliOpenRequest, HomeMode } from "@/types";
 
 /**
@@ -43,6 +43,8 @@ export const useExternalImports = () => {
       const targetMode = parsedUrl.searchParams.get("mode") as HomeMode | null;
       const queryParams: Record<string, string> = {
         url: normalizeDeepLinkVideoUrl(videoUrl),
+        // 任意网页都能触发深链接：只填入链接，由用户点击后再解析
+        source: DEEP_LINK_SOURCE,
         _t: String(Date.now()),
       };
 
@@ -72,7 +74,12 @@ export const useExternalImports = () => {
     if (request.url) {
       router.push({
         name: "home",
-        query: { url: request.url, _t: String(Date.now()) },
+        query: {
+          url: request.url,
+          // Windows/Linux 上深链接也会以启动参数形式到达这里
+          ...(request.fromDeepLink ? { source: DEEP_LINK_SOURCE } : {}),
+          _t: String(Date.now()),
+        },
       });
     }
   };
