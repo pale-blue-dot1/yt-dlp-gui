@@ -52,6 +52,38 @@ fn runtime_args(runtime: &str, path: Option<&std::path::Path>) -> Vec<String> {
     ]
 }
 
+/// 校验交给 yt-dlp 的目标地址必须是带主机名的 http(s) URL。
+///
+/// 前端已做同样的检查，这里在后端再兜底一次：任何 IPC、深链接或数据库来源的
+/// 值都不能以 `-` 开头被 yt-dlp 当成选项，也不能是 `file:` 等其他协议。
+pub fn validate_http_url(url: &str) -> Result<(), String> {
+    match url::Url::parse(url) {
+        Ok(parsed) if matches!(parsed.scheme(), "http" | "https") && parsed.has_host() => Ok(()),
+        _ => Err("err_invalid_url".to_string()),
+    }
+}
+
+/// 在参数末尾追加 `--` 和目标 URL。
+///
+/// yt-dlp 的用法是 `yt-dlp [OPTIONS] [--] URL [URL...]`，`--` 之后的参数一律按
+/// URL 处理，因此它必须是参数列表的最后一段，调用方之后不能再追加选项。
+pub fn append_url_args<I, S>(args: &mut Vec<String>, urls: I) -> Result<(), String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let urls = urls
+        .into_iter()
+        .map(|url| {
+            let url = url.as_ref();
+            validate_http_url(url).map(|_| url.to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    args.push("--".to_string());
+    args.extend(urls);
+    Ok(())
+}
+
 /// 解析用户自定义命令行参数字符串为独立的参数列表（支持单双引号与转义）
 pub fn split_command_line_args(input: &str) -> Result<Vec<String>, String> {
     let mut args = Vec::new();
@@ -159,6 +191,47 @@ mod tests {
                 ""
             ]
         );
+    }
+
+    #[test]
+    fn accepts_only_http_urls_with_a_host() {
+        assert!(validate_http_url("https://www.youtube.com/watch?v=abc").is_ok());
+        assert!(validate_http_url("http://example.com/video").is_ok());
+        assert!(validate_http_url("HTTPS://EXAMPLE.COM/").is_ok());
+        for rejected in [
+            "",
+            "--exec=calc",
+            "-o/tmp/x",
+            "file:///etc/passwd",
+            "ytsearch:cats",
+            "javascript:alert(1)",
+            "ftp://example.com/file",
+            "https://",
+            "example.com/video",
+        ] {
+            assert!(validate_http_url(rejected).is_err(), "{rejected}");
+        }
+    }
+
+    #[test]
+    fn appends_urls_after_an_end_of_options_separator() {
+        let mut args = vec!["-J".to_string()];
+        append_url_args(
+            &mut args,
+            ["https://example.com/a", "https://example.com/b"],
+        )
+        .unwrap();
+        assert_eq!(
+            args,
+            ["-J", "--", "https://example.com/a", "https://example.com/b"]
+        );
+    }
+
+    #[test]
+    fn appends_nothing_when_any_url_is_invalid() {
+        let mut args = vec!["-J".to_string()];
+        assert!(append_url_args(&mut args, ["https://example.com/a", "--exec=calc"]).is_err());
+        assert_eq!(args, ["-J"]);
     }
 
     #[test]

@@ -105,14 +105,22 @@ fn base_enrich_args() -> Vec<String> {
 /// 返回 LOGIN_REQUIRED，不带任何日期字段——这就是“看得到却抓不到”的原因。
 /// 允许嵌入的视频有时能被 web_embedded 绕过；其余一律需要登录 Cookie，
 /// 本任务已透传 Cookie/代理参数，在设置里配好 Cookie 即可校准这类视频。
-fn build_enrich_args(urls: &[String]) -> Vec<String> {
+fn build_enrich_args() -> Vec<String> {
     let mut args = base_enrich_args();
     args.push("--extractor-args".to_string());
     args.push("youtube:player_client=android,web_embedded;player_skip=webpage".to_string());
-    for url in urls {
-        args.push(url.clone());
-    }
     args
+}
+
+/// 以 `--` 结尾追加分片内的详情页 URL；非 http(s) 的条目直接跳过，
+/// 它们在本轮里不会被校准，与 `--ignore-errors` 下的坏链处理一致。
+fn append_enrich_urls(args: &mut Vec<String>, chunk: &[EnrichItem]) {
+    let urls = chunk
+        .iter()
+        .map(|(_, _, url)| url.as_str())
+        .filter(|url| utils::validate_http_url(url).is_ok());
+    // 每个 URL 都已通过校验，这里不会失败
+    let _ = utils::append_url_args(args, urls);
 }
 
 /// 日期校准任务的工作单元：(行主键 id, 视频 video_id, 详情页 URL)
@@ -170,18 +178,10 @@ async fn enrich_worker(ctx: EnrichWorkerCtx) {
         }
 
         let mut args = if is_youtube {
-            build_enrich_args(
-                &chunk
-                    .iter()
-                    .map(|(_, _, url)| url.clone())
-                    .collect::<Vec<_>>(),
-            )
+            build_enrich_args()
         } else {
             // 非 YouTube 站点没有 player_client 概念，用共用参数即可
             let mut generic = base_enrich_args();
-            for (_, _, url) in &chunk {
-                generic.push(url.clone());
-            }
             // B 站风控与其他平台不同，仅该平台附加浏览器 UA
             if channel_platform == "bilibili" {
                 generic.push("--user-agent".to_string());
@@ -195,6 +195,7 @@ async fn enrich_worker(ctx: EnrichWorkerCtx) {
             cookie_browser.as_deref(),
             proxy.as_deref(),
         );
+        append_enrich_urls(&mut args, &chunk);
 
         let mut cmd = tokio::process::Command::new(&ytdlp_path);
         cmd.args(&args)
