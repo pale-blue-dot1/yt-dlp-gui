@@ -345,6 +345,23 @@ test("clearing cancelled tasks waits for in-flight startup and cannot recreate t
   expect(invoke).toHaveBeenLastCalledWith("db_delete_tasks", { ids: ["clear"] });
 });
 
+test("clearing failed tasks cleans residual files before deleting their rows", async () => {
+  const store = await readyStore();
+  const failed = createTask("failed", "error");
+  failed.logs = ["[download] Destination: /downloads/video.f137.mp4"];
+  store.tasks.push(failed);
+  vi.mocked(invoke).mockImplementation(async () => []);
+  await store.clearFailed();
+  const commands = vi.mocked(invoke).mock.calls.map(([command]) => command);
+  expect(invoke).toHaveBeenCalledWith("clean_task_residual_files", {
+    taskId: "failed",
+    knownPaths: ["/downloads/video.f137.mp4"],
+  });
+  expect(commands.indexOf("clean_task_residual_files")).toBeLessThan(
+    commands.indexOf("db_delete_tasks"),
+  );
+});
+
 test("clearing completed history waits for the final state to be persisted", async () => {
   const store = await readyStore();
   store.tasks.push(createTask("done", "downloading"));

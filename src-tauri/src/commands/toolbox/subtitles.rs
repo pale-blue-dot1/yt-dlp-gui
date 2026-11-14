@@ -2,9 +2,10 @@
 
 use crate::commands::support::{self, build_http_client};
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 
 use super::runner::run_ytdlp_tool;
+use super::save_target::SaveTargets;
 
 /// 获取视频可用字幕列表（返回 subtitles + automatic_captions）
 /// 支持单视频和合集：合集 URL 时聚合所有 entry 的字幕（同语言取首个出现的 entry）。
@@ -70,10 +71,12 @@ fn aggregate_subtitle_map(entries: &[Value], field: &str) -> Value {
 /// 下载单个字幕文件并另存为
 #[tauri::command]
 pub async fn tool_save_subtitle(
+    targets: State<'_, SaveTargets>,
     url: String,
     file_path: String,
     proxy: Option<String>,
 ) -> Result<(), String> {
+    let path = targets.take(&file_path)?;
     let client = build_http_client(proxy.as_deref())?;
 
     let response = client
@@ -91,13 +94,13 @@ pub async fn tool_save_subtitle(
         .await
         .map_err(|e| format!("err_read_subtitle_data:{}", e))?;
 
-    if let Some(parent) = std::path::Path::new(&file_path).parent() {
+    if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
             .map_err(|e| format!("err_create_dir:{}", e))?;
     }
 
-    tokio::fs::write(&file_path, &text)
+    tokio::fs::write(&path, &text)
         .await
         .map_err(|e| format!("err_save_file:{}", e))?;
 

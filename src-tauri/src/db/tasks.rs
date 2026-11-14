@@ -204,6 +204,67 @@ pub fn mark_task_cancelled(state: &DatabaseState, id: &str) -> Result<(), String
     Ok(())
 }
 
+/// 文件类命令用来判断路径归属的任务信息：输出文件与该任务的下载目录。
+#[derive(Debug, Default, PartialEq)]
+pub struct TaskFileScope {
+    pub output_file: Option<String>,
+    pub download_dir: Option<String>,
+}
+
+fn task_file_scope(output_file: Option<String>, params_raw: &str) -> TaskFileScope {
+    let download_dir = serde_json::from_str::<serde_json::Value>(params_raw)
+        .ok()
+        .and_then(|params| {
+            params
+                .get("downloadDir")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .filter(|dir| !dir.is_empty());
+    TaskFileScope {
+        output_file,
+        download_dir,
+    }
+}
+
+/// 按任务 ID 读取输出文件与下载目录
+pub fn get_task_file_scope(
+    conn: &Connection,
+    id: &str,
+) -> Result<Option<TaskFileScope>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT output_file, params_json FROM tasks WHERE id = ?1")?;
+    let mut rows = stmt.query_map(params![id], |row| {
+        let output_file: Option<String> = row.get(0)?;
+        let params_raw: String = row.get(1)?;
+        Ok(task_file_scope(output_file, &params_raw))
+    })?;
+    rows.next().transpose()
+}
+
+/// 查找输出文件恰好为 `path` 的任务
+pub fn find_task_by_output_file(
+    conn: &Connection,
+    path: &str,
+) -> Result<Option<TaskFileScope>, rusqlite::Error> {
+    let mut stmt =
+        conn.prepare("SELECT output_file, params_json FROM tasks WHERE output_file = ?1 LIMIT 1")?;
+    let mut rows = stmt.query_map(params![path], |row| {
+        let output_file: Option<String> = row.get(0)?;
+        let params_raw: String = row.get(1)?;
+        Ok(task_file_scope(output_file, &params_raw))
+    })?;
+    rows.next().transpose()
+}
+
+/// 所有任务记录过的输出文件路径
+pub fn known_output_files(
+    conn: &Connection,
+) -> Result<std::collections::HashSet<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT output_file FROM tasks WHERE output_file IS NOT NULL")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    rows.collect()
+}
+
 // 暴露给前端调用的 Tauri 命令
 
 /// 获取所有持久化任务列表
@@ -277,6 +338,54 @@ pub fn db_delete_tasks(state: State<'_, DatabaseState>, ids: Vec<String>) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn looks_up_output_files_and_download_dirs_of_known_tasks() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::schema::run_migrations(&conn).unwrap();
+        upsert_task_internal(
+            &conn,
+            &DownloadTaskRecord {
+                id: "done".to_string(),
+                status: "completed".to_string(),
+                output_file: Some("/downloads/video.mp4".to_string()),
+                params: serde_json::json!({ "downloadDir": "/downloads" }),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        upsert_task_internal(
+            &conn,
+            &DownloadTaskRecord {
+                id: "interrupted".to_string(),
+                status: "error".to_string(),
+                params: serde_json::json!({ "downloadDir": "" }),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let expected = TaskFileScope {
+            output_file: Some("/downloads/video.mp4".to_string()),
+            download_dir: Some("/downloads".to_string()),
+        };
+        assert_eq!(get_task_file_scope(&conn, "done").unwrap(), Some(expected));
+        assert_eq!(
+            get_task_file_scope(&conn, "interrupted").unwrap(),
+            Some(TaskFileScope::default())
+        );
+        assert_eq!(get_task_file_scope(&conn, "missing").unwrap(), None);
+        assert!(find_task_by_output_file(&conn, "/downloads/video.mp4")
+            .unwrap()
+            .is_some());
+        assert!(find_task_by_output_file(&conn, "/etc/passwd")
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            known_output_files(&conn).unwrap(),
+            ["/downloads/video.mp4".to_string()].into_iter().collect()
+        );
+    }
 
     fn database_with_tasks() -> Connection {
         let conn = Connection::open_in_memory().unwrap();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/utils/saveDialog";
 import { showErrorDialog } from "@/utils/format";
 import { isValidUrl } from "@/utils/validate";
 import { useSettingStore } from "@/stores/setting";
@@ -230,7 +230,7 @@ const handleSave = async () => {
   }
 
   const ext = exportFormat.value;
-  const filePath = await save({
+  const filePath = await pickSavePath({
     title: t("toolbox.saveChatData"),
     defaultPath: `live_chat.${ext}`,
     filters: [{ name: ext.toUpperCase(), extensions: [ext] }],

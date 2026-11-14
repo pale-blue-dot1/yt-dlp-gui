@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/utils/saveDialog";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { showErrorDialog, sanitizeFilename } from "@/utils/format";
 import { isValidUrl } from "@/utils/validate";
@@ -136,7 +136,7 @@ const handleSave = async () => {
   const defaultName = videoTitle.value
     ? `${sanitizeFilename(videoTitle.value).slice(0, 200)}.chapters.${ext}`
     : `chapters.${ext}`;
-  const filePath = await save({
+  const filePath = await pickSavePath({
     title: t("toolbox.saveChapters"),
     defaultPath: defaultName,
     filters: [{ name: ext.toUpperCase(), extensions: [ext] }],

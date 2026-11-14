@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/utils/saveDialog";
 import { showErrorDialog, sanitizeFilename } from "@/utils/format";
 import { isValidUrl } from "@/utils/validate";
 import { useSettingStore } from "@/stores/setting";
@@ -113,7 +113,7 @@ const handleSave = async (thumb: ThumbnailInfo) => {
     ? `${sanitizeFilename(videoTitle.value).slice(0, 200)}.${ext}`
     : `thumbnail.${ext}`;
 
-  const filePath = await save({
+  const filePath = await pickSavePath({
     title: t("toolbox.saveThumbnail"),
     defaultPath: defaultName,
     filters: [{ name: t("toolbox.imageFiles"), extensions: [ext, "jpg", "png", "webp"] }],

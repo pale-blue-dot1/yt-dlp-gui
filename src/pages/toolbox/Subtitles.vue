@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/utils/saveDialog";
 import { showErrorDialog, sanitizeFilename } from "@/utils/format";
 import { isValidUrl } from "@/utils/validate";
 import { mergeBilingualSrt, mergeBilingualVtt } from "@/utils/subtitle";
@@ -148,7 +148,7 @@ const handleSave = async (item: SubItem) => {
     ? `${sanitizeFilename(videoTitle.value).slice(0, 200)}.${item.lang}.${ext}`
     : `subtitle.${item.lang}.${ext}`;
 
-  const filePath = await save({
+  const filePath = await pickSavePath({
     title: t("toolbox.saveSubtitleFile"),
     defaultPath: defaultName,
     filters: [{ name: t("toolbox.subtitleFiles"), extensions: [ext] }],
@@ -210,7 +210,7 @@ const handleSaveBilingual = async () => {
     ? `${sanitizeFilename(videoTitle.value).slice(0, 200)}.${primary.lang}-${secondary.lang}.${mergeFormat}`
     : `subtitle.${primary.lang}-${secondary.lang}.${mergeFormat}`;
 
-  const filePath = await save({
+  const filePath = await pickSavePath({
     title: t("toolbox.saveBilingualSubtitle"),
     defaultPath: defaultName,
     filters: [{ name: t("toolbox.subtitleFiles"), extensions: [mergeFormat] }],
