@@ -72,6 +72,7 @@
     "err_invalid_url": "Only http:// and https:// links are supported",
     "err_save_path_not_allowed": "Choose the destination again in the save dialog",
     "err_file_not_in_task": "This file does not belong to a download task",
+    "err_custom_arg_not_allowed": "This option can run external programs and is not allowed in custom yt-dlp arguments",
     "err_parse_video_info": "Failed to parse video info",
     "err_save_cookie": "Failed to save cookie file",
     "err_download_failed": "Download failed",
