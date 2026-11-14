@@ -5,7 +5,7 @@ use tauri::AppHandle;
 
 use super::support::{
     build_tool_status, download_to_file_with_progress, emit_tool_progress, executable_temp_path,
-    replace_executable, verify_executable,
+    replace_executable, verify_executable, verify_sha256_or_remove,
 };
 use super::ToolStatus;
 
@@ -33,7 +33,8 @@ async fn cleanup_temps(temps: &[std::path::PathBuf]) {
 
 async fn download_ffmpeg_impl(app: AppHandle, operation: &str) -> Result<(), String> {
     let dir = utils::get_managed_ffmpeg_dir(&app)?;
-    let urls = utils::get_ffmpeg_download_urls();
+    // 固定版本 + 硬编码 SHA-256（上游 ffmpeg-static 不发布校验和）
+    let downloads = utils::get_ffmpeg_downloads();
     let ffmpeg_name = if cfg!(target_os = "windows") {
         "ffmpeg.exe"
     } else {
@@ -51,7 +52,7 @@ async fn download_ffmpeg_impl(app: AppHandle, operation: &str) -> Result<(), Str
     ];
 
     // 两个文件各占总进度的一半
-    for (index, ((_, url), temp)) in urls.iter().zip(temps.iter()).enumerate() {
+    for (index, ((_, url, sha256), temp)) in downloads.iter().zip(temps.iter()).enumerate() {
         if let Err(e) = download_to_file_with_progress(
             &app,
             "ffmpeg",
@@ -63,6 +64,11 @@ async fn download_ffmpeg_impl(app: AppHandle, operation: &str) -> Result<(), Str
         )
         .await
         {
+            cleanup_temps(&temps).await;
+            return Err(e);
+        }
+        // 校验失败时清掉两份临时文件，现有 FFmpeg 保持不变
+        if let Err(e) = verify_sha256_or_remove(temp, sha256).await {
             cleanup_temps(&temps).await;
             return Err(e);
         }

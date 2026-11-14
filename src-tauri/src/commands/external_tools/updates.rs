@@ -31,6 +31,11 @@ async fn fetch_latest_release_tag(tool: &str) -> Result<String, String> {
     // yt-dlp 按当前所选通道（stable/nightly/master）检查对应仓库的最新构建。
     let url = utils::get_tool_latest_release_url(tool)
         .ok_or_else(|| format!("err_unknown_tool:{}", tool))?;
+    resolve_release_tag(&url).await
+}
+
+/// 请求 GitHub 发行页并从（重定向后的）URL 中取出发行标签。
+pub(super) async fn resolve_release_tag(url: &str) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .timeout(UPDATE_CHECK_TIMEOUT)
         .user_agent(concat!("yt-dlp-gui/", env!("CARGO_PKG_VERSION")))
