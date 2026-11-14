@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import IconMdiDownloadOutline from "~icons/mdi/download-outline";
 import IconMdiCursorDefaultClick from "~icons/mdi/cursor-default-click";
 import IconMdiOpenInNew from "~icons/mdi/open-in-new";
@@ -38,13 +38,13 @@ const prepareExtension = async () => {
         <n-text strong style="font-size: 15px">{{ $t("browserExt.title") }}</n-text>
       </n-flex>
       <n-flex :size="8" :wrap="false">
-        <n-button text size="small" @click="openExternal(SUPPORTED_SITES_URL)">
+        <n-button text size="small" @click="openUrl(SUPPORTED_SITES_URL)">
           <template #icon>
             <n-icon><icon-mdi-open-in-new /></n-icon>
           </template>
           {{ $t("browserExt.supportedHeading") }}
         </n-button>
-        <n-button text size="small" @click="openExternal(REPO_URL)">
+        <n-button text size="small" @click="openUrl(REPO_URL)">
           <template #icon>
             <n-icon><icon-mdi-open-in-new /></n-icon>
           </template>
