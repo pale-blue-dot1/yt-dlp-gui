@@ -14,7 +14,7 @@ pub async fn save_cookie_text(app: AppHandle, text: String) -> Result<String, St
     let cookie_path = utils::get_cookie_path(&app)?;
     let normalized = normalize_netscape_cookie_file(&text)?;
     let temporary = cookie_path.with_extension("txt.tmp");
-    tokio::fs::write(&temporary, normalized.as_bytes())
+    utils::write_private_file(&temporary, normalized.as_bytes())
         .await
         .map_err(|e| format!("err_save_cookie:{}", e))?;
     if tokio::fs::rename(&temporary, &cookie_path).await.is_err() {
