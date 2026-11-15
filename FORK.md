@@ -19,11 +19,24 @@ This is a fork of [imsyy/yt-dlp-gui](https://github.com/imsyy/yt-dlp-gui) with s
 - Changing the scheme or port means editing Rust and browser-extension code that upstream also edits, which would cause merge conflicts. Changing the identifier would move the app data folder, so settings and history would not carry over.
 - Consequence: a fork build replaces an upstream install. Never install an upstream release over it.
 
+## One-time setup
+
+Install the pnpm version the project pins (`packageManager` in `package.json`), globally with npm:
+
+```bash
+npm install -g pnpm@11.12.0
+```
+
+- The build runs `pnpm build` itself, so a plain `pnpm` command must be on the PATH; `corepack pnpm` alone is not enough.
+- Use the pinned version, not the latest. pnpm 12 refuses to switch to 11.12.0 (it flags that release as broken for the standalone `@pnpm/exe` build) and runs itself instead, which can rewrite `pnpm-lock.yaml`. The npm package of 11.12.0 works fine.
+- npm may warn that pnpm's install scripts were skipped; pnpm runs without them.
+- When upstream moves the pin, install the new version the same way.
+
 ## Building on Windows
 
-1. Install dependencies: `corepack pnpm install --frozen-lockfile`
-2. Build the installers: `corepack pnpm tauri build --config src-tauri/tauri.fork.conf.json`
-   - The first build downloads the WiX and NSIS bundler tools.
+1. Install dependencies: `pnpm install --frozen-lockfile`
+2. Build the installers: `pnpm tauri build --config src-tauri/tauri.fork.conf.json`
+   - The first build downloads the WiX and NSIS bundler tools, and a release build takes about 15 minutes.
    - Installers land in `src-tauri/target/release/bundle/msi/` and `src-tauri/target/release/bundle/nsis/`.
 3. Run either installer. They are not code-signed, so Windows SmartScreen warns; choose "More info", then "Run anyway".
 4. Browser extension:
@@ -43,7 +56,7 @@ This is a fork of [imsyy/yt-dlp-gui](https://github.com/imsyy/yt-dlp-gui) with s
 ## Checks
 
 - In `src-tauri/`: `cargo check`, `cargo clippy --all-targets`, `cargo test`
-- At the repository root: `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm test`
+- At the repository root: `pnpm typecheck`, `pnpm lint`, `pnpm test`
 
 ## Sending a fix upstream
 
@@ -53,7 +66,7 @@ Branch from `upstream/master`, not from this fork's `master`, so the change carr
 
 Not set up. It would need:
 
-- an updater signing key of your own (`corepack pnpm tauri signer generate`), with its public key in the override's `plugins.updater.pubkey`;
+- an updater signing key of your own (`pnpm tauri signer generate`), with its public key in the override's `plugins.updater.pubkey`;
 - `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets on the fork;
 - `--config src-tauri/tauri.fork.conf.json` added to the build args in `.github/workflows/release.yml`, and `createUpdaterArtifacts` turned back on;
 - a version scheme that stays ahead of installed builds, since the updater only installs higher versions and the fork shares upstream's version numbers.
