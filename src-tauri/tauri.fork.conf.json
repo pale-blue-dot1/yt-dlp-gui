@@ -1,0 +1,10 @@
+{
+  "bundle": { "createUpdaterArtifacts": false },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/pale-blue-dot1/yt-dlp-gui/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
